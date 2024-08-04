@@ -6,9 +6,22 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, useColorScheme, View, FlatList, TouchableOpacity, PermissionsAndroid, Platform,} from 'react-native';
+import {
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  TouchableOpacity,
+  PermissionsAndroid,
+  Platform,
+  Button,
+  Alert,
+} from 'react-native';
 import Sound from 'react-native-sound';
 import RNFS, { ReadDirItem } from 'react-native-fs';
+import DocumentPicker from 'react-native-document-picker';
 
 // Define a type for the song items
 interface SongItem {
@@ -23,35 +36,74 @@ const App = () => {
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    // Request storage permission on Android
+    console.log('App started');
     if (Platform.OS === 'android') {
-      PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
-      ).then((granted) => {
-        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          loadSongs();
-        } else {
-          console.log('Storage permission denied');
-        }
-      });
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE)
+        .then(hasPermission => {
+          if (hasPermission) {
+            console.log('Storage permission already granted');
+            loadSongs();
+          } else {
+            console.log('Requesting storage permission');
+            PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+            ).then((granted) => {
+              console.log('Permission result:', granted);
+              if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                loadSongs();
+              } else {
+                console.log('Storage permission denied');
+              }
+            });
+          }
+        });
     } else {
       loadSongs();
     }
   }, []);
 
-  const loadSongs = () => {
-    RNFS.readDir(RNFS.ExternalStorageDirectoryPath)
-      .then((result: ReadDirItem[]) => {
-        const mp3Files = result.filter(file => file.isFile() && file.name.endsWith('.mp3'));
-        const songItems: SongItem[] = mp3Files.map(file => ({
-          name: file.name,
-          path: file.path,
-        }));
-        setSongs(songItems);
-      })
-      .catch((err) => {
-        console.log(err.message, err.code);
-      });
+  const loadSongs = async (additionalPath = '') => {
+    const directories = [
+      RNFS.ExternalStorageDirectoryPath,
+      `${RNFS.ExternalStorageDirectoryPath}/Music`,
+      `${RNFS.ExternalStorageDirectoryPath}/Download`,
+      `${RNFS.ExternalStorageDirectoryPath}/Download/Rap`,
+    ];
+
+    // Include custom path if provided
+    if (additionalPath) {
+      directories.push(additionalPath);
+    }
+
+    let allSongs: SongItem[] = [];
+
+    for (const dir of directories) {
+      try {
+        console.log(`Attempting to read directory: ${dir}`);
+        const dirExists = await RNFS.exists(dir);
+        if (!dirExists) {
+          console.log(`Directory does not exist: ${dir}`);
+          continue;
+        }
+        const files = await RNFS.readDir(dir);
+        if (files && files.length > 0) {
+          console.log(`Files found in ${dir}:`, files.length);
+          const mp3Files = files.filter(file => file.isFile() && file.name.toLowerCase().endsWith('.mp3'));
+          console.log(`MP3 files found in ${dir}:`, mp3Files.length);
+          allSongs = allSongs.concat(mp3Files.map(file => ({
+            name: file.name,
+            path: file.path,
+          })));
+        } else {
+          console.log(`No files found in ${dir}`);
+        }
+      } catch (err) {
+        console.log(`Error reading ${dir}:`, err);
+      }
+    }
+
+    console.log('Total songs found:', allSongs.length);
+    setSongs(allSongs);
   };
 
   const playSong = (filePath: string) => {
@@ -78,11 +130,31 @@ const App = () => {
     });
   };
 
+  const handlePickDirectory = async () => {
+    try {
+      const res = await DocumentPicker.pickDirectory();
+      if (res) {
+        console.log('Selected directory:', res);
+        loadSongs(res.uri.replace('file://', ''));
+      }
+    } catch (err) {
+      if (DocumentPicker.isCancel(err)) {
+        console.log('User cancelled directory picker');
+      } else {
+        console.error('Unknown error:', err);
+        Alert.alert('Error', 'An error occurred while selecting a directory.');
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
-        <Text style={styles.title}>Music Player</Text>
+        <Text style={styles.title}>AudioFlow</Text>
+      </View>
+      <View style={styles.inputContainer}>
+        <Button title="Select Directory" onPress={handlePickDirectory} />
       </View>
       <FlatList
         data={songs}
@@ -110,14 +182,22 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
+  inputContainer: {
+    padding: 16,
+    backgroundColor: '#f5f5f5',
+  },
   songItem: {
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
+    backgroundColor: '#f5f5f5',
   },
   songTitle: {
     fontSize: 18,
+    color: '#333',
   },
 });
 
 export default App;
+
+// AudioFlow App Name
