@@ -18,6 +18,8 @@ import {
   Platform,
   Button,
   Alert,
+  Modal,
+  Image,
 } from 'react-native';
 import Sound from 'react-native-sound';
 import RNFS, { ReadDirItem } from 'react-native-fs';
@@ -34,6 +36,8 @@ const App = () => {
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [currentSong, setCurrentSong] = useState<Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showNowPlaying, setShowNowPlaying] = useState(false);
+  const [currentSongItem, setCurrentSongItem] = useState<SongItem | null>(null);
 
   useEffect(() => {
     console.log('App started');
@@ -106,7 +110,7 @@ const App = () => {
     setSongs(allSongs);
   };
 
-  const playSong = (filePath: string) => {
+  const playSong = (filePath: string, songItem: SongItem) => {
     if (currentSong) {
       currentSong.stop(() => currentSong.release());
       setIsPlaying(false);
@@ -127,6 +131,8 @@ const App = () => {
       });
       setCurrentSong(sound);
       setIsPlaying(true);
+      setCurrentSongItem(songItem);
+      setShowNowPlaying(true);
     });
   };
 
@@ -144,27 +150,90 @@ const App = () => {
         console.error('Unknown error:', err);
         Alert.alert('Error', 'An error occurred while selecting a directory.');
       }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (currentSong) {
+      if (isPlaying) {
+        currentSong.pause();
+      } else {
+        currentSong.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const nextSong = () => {
+    const currentIndex = songs.findIndex(song => song.path === currentSongItem?.path);
+    if (currentIndex < songs.length - 1) {
+      const nextSong = songs[currentIndex + 1];
+      playSong(nextSong.path, nextSong);
+    }
+  };
+
+  const previousSong = () => {
+    const currentIndex = songs.findIndex(song => song.path === currentSongItem?.path);
+    if (currentIndex > 0) {
+      const prevSong = songs[currentIndex - 1];
+      playSong(prevSong.path, prevSong);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.title}>AudioFlow</Text>
       </View>
       <View style={styles.inputContainer}>
-        <Button title="Select Directory" onPress={handlePickDirectory} />
+        <TouchableOpacity style={styles.selectButton} onPress={handlePickDirectory}>
+          <Text style={styles.selectButtonText}>Select Directory</Text>
+        </TouchableOpacity>
       </View>
       <FlatList
         data={songs}
         keyExtractor={(item) => item.path}
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => playSong(item.path)} style={styles.songItem}>
+          <TouchableOpacity 
+            onPress={() => playSong(item.path, item)} 
+            style={styles.songItem}
+          >
             <Text style={styles.songTitle}>{item.name}</Text>
           </TouchableOpacity>
         )}
       />
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={showNowPlaying}
+        onRequestClose={() => setShowNowPlaying(false)}
+      >
+        <View style={styles.nowPlayingContainer}>
+          <View style={styles.albumArtContainer}>
+            <View style={styles.albumArt} />
+          </View>
+          <Text style={styles.nowPlayingTitle}>{currentSongItem?.name}</Text>
+          <View style={styles.controls}>
+            <TouchableOpacity onPress={previousSong} style={styles.controlButton}>
+              <Text style={styles.controlButtonText}>Previous</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={togglePlayPause} style={styles.controlButton}>
+              <Text style={styles.controlButtonText}>{isPlaying ? 'Pause' : 'Play'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={nextSong} style={styles.controlButton}>
+              <Text style={styles.controlButtonText}>Next</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity 
+            onPress={() => setShowNowPlaying(false)}
+            style={styles.closeButton}
+          >
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -172,29 +241,94 @@ const App = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#121212',
   },
   header: {
     padding: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1E1E1E',
     alignItems: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#fff',
   },
   inputContainer: {
     padding: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1E1E1E',
+  },
+  selectButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1DB954',
+    padding: 12,
+    borderRadius: 25,
+  },
+  selectButtonText: {
+    color: '#fff',
+    fontSize: 16,
   },
   songItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    backgroundColor: '#f5f5f5',
+    borderBottomColor: '#2A2A2A',
   },
   songTitle: {
-    fontSize: 18,
-    color: '#333',
+    fontSize: 16,
+    color: '#fff',
+  },
+  nowPlayingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#121212',
+  },
+  albumArtContainer: {
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: '#2A2A2A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  albumArt: {
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: '#4A4A4A',
+  },
+  nowPlayingTitle: {
+    fontSize: 20,
+    color: '#fff',
+    marginBottom: 30,
+  },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    width: '80%',
+  },
+  controlButton: {
+    backgroundColor: '#1DB954',
+    padding: 10,
+    borderRadius: 20,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  controlButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  closeButton: {
+    marginTop: 30,
+    backgroundColor: '#4A4A4A',
+    padding: 10,
+    borderRadius: 20,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
   },
 });
 
