@@ -29,6 +29,9 @@ import DocumentPicker from 'react-native-document-picker';
 interface SongItem {
   name: string;
   path: string;
+  artist?: string;
+  coverArtUrl?: string;
+  album?: string;
 }
 
 const App = () => {
@@ -196,12 +199,19 @@ const App = () => {
         data={songs}
         keyExtractor={(item) => item.path}
         renderItem={({ item }) => (
-          <TouchableOpacity 
-            onPress={() => playSong(item.path, item)} 
-            style={styles.songItem}
-          >
+          <TouchableOpacity onPress={() => playSong(item.path, item)} style={styles.songItem}>
+          {item.coverArtUrl ? (
+            <Image source={{ uri: item.coverArtUrl }} style={styles.songCoverArt} />
+          ) : (
+            <View style={styles.defaultCoverArt}>
+              <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
+            </View>
+          )}
+          <View style={styles.songInfo}>
             <Text style={styles.songTitle}>{item.name}</Text>
-          </TouchableOpacity>
+            {item.artist && <Text style={styles.songArtist}>{item.artist}</Text>}
+          </View>
+        </TouchableOpacity>
         )}
       />
       <Modal
@@ -329,6 +339,31 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: '#fff',
     fontSize: 16,
+  },
+
+  songCoverArt: {
+    width: 60,
+    height: 60,
+    marginRight: 16,
+  },
+  defaultCoverArt: {
+    width: 60,
+    height: 60,
+    marginRight: 16,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  defaultCoverArtText: {
+    color: '#fff',
+    fontSize: 12,
+  },
+  songInfo: {
+    flex: 1,
+  },
+  songArtist: {
+    color: '#aaa',
+    fontSize: 14,
   },
 });
 
