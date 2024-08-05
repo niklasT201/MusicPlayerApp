@@ -24,6 +24,7 @@ import {
 import Sound from 'react-native-sound';
 import RNFS, { ReadDirItem } from 'react-native-fs';
 import DocumentPicker from 'react-native-document-picker';
+import Slider from '@react-native-community/slider';
 
 // Define a type for the song items
 interface SongItem {
@@ -41,6 +42,25 @@ const App = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [currentSongItem, setCurrentSongItem] = useState<SongItem | null>(null);
+
+  // Add these states to manage progress and duration
+    const [progress, setProgress] = useState(0);
+    const [duration, setDuration] = useState(0);
+
+    // Function to update progress and duration
+    const updateProgress = () => {
+      if (currentSong) {
+        currentSong.getCurrentTime(seconds => setProgress(seconds));
+        setDuration(currentSong.getDuration());
+      }
+    };
+
+    // Start interval for progress updates
+    useEffect(() => {
+      const interval = setInterval(updateProgress, 1000);
+      return () => clearInterval(interval);
+    }, [currentSong]);
+
 
   useEffect(() => {
     console.log('App started');
@@ -191,7 +211,7 @@ const App = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar backgroundColor="#1E1E1E" barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.title}>AudioFlow</Text>
       </View>
@@ -226,6 +246,7 @@ const App = () => {
         onRequestClose={() => setShowNowPlaying(false)}
       >
         <View style={styles.nowPlayingContainer}>
+        <StatusBar backgroundColor="#121212" barStyle="light-content" />
           {currentSongItem?.coverArtUrl ? (
             <Image source={{ uri: currentSongItem.coverArtUrl }} style={styles.nowPlayingCoverArt} />
           ) : (
@@ -246,11 +267,30 @@ const App = () => {
               <Text style={styles.controlButtonText}>Next</Text>
             </TouchableOpacity>
           </View>
+          <Slider
+              style={{ width: '80%', height: 40 }}
+              minimumValue={0}
+              maximumValue={duration}
+              value={progress}
+              minimumTrackTintColor="#1DB954"
+              maximumTrackTintColor="#fff"
+              thumbTintColor="#1DB954"
+              onValueChange={(value) => {
+                if (currentSong) {
+                  currentSong.setCurrentTime(value);
+                  setProgress(value);
+                }
+              }}
+            />
+            <View style={styles.timeContainer}>
+              <Text style={styles.timeText}>{new Date(progress * 1000).toISOString().substr(11, 8)}</Text>
+              <Text style={styles.timeText}>{new Date(duration * 1000).toISOString().substr(11, 8)}</Text>
+            </View>
           <TouchableOpacity 
             onPress={() => setShowNowPlaying(false)}
             style={styles.closeButton}
           >
-            <Text style={styles.closeButtonText}>Close</Text>
+          <Text style={styles.closeButtonText}>Close</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -362,6 +402,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '80%',
+    marginBottom: 10,
+    marginTop: 20,
   },
   controlButton: {
     backgroundColor: '#1DB954',
@@ -383,6 +425,16 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: '#fff',
     fontSize: 16,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '80%',
+    marginTop: 10,
+  },
+  timeText: {
+    color: '#fff',
+    fontSize: 12,
   },
 });
 
