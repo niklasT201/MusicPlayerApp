@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   StatusBar,
   StyleSheet,
+  ScrollView ,
   Text,
   View,
   FlatList,
@@ -139,30 +140,35 @@ const App = () => {
   };
 
   const playSong = (filePath: string, songItem: SongItem) => {
-    if (currentSong) {
-      currentSong.stop(() => currentSong.release());
-      setIsPlaying(false);
+  if (currentSong) {
+    currentSong.stop(() => currentSong.release());
+    setIsPlaying(false);
+  }
+
+  const sound = new Sound(filePath, '', (error) => {
+    if (error) {
+      console.log('Failed to load sound', error);
+      return;
     }
-    const sound = new Sound(filePath, '', (error) => {
-      if (error) {
-        console.log('Failed to load sound', error);
-        return;
+
+    sound.play((success) => {
+      if (success) {
+        console.log('Playback finished');
+        nextSong(); // Automatically play the next song when the current song finishes
+      } else {
+        console.log('Playback failed due to audio decoding errors');
       }
-      sound.play((success) => {
-        if (success) {
-          console.log('Playback finished');
-        } else {
-          console.log('Playback failed');
-        }
-        setIsPlaying(false);
-        sound.release();
-      });
-      setCurrentSong(sound);
-      setIsPlaying(true);
-      setCurrentSongItem(songItem);
-      setShowNowPlaying(true);
+      setIsPlaying(false);
+      sound.release();
     });
-  };
+
+    setCurrentSong(sound);
+    setIsPlaying(true);
+    setCurrentSongItem(songItem);
+    setShowNowPlaying(true);
+  });
+};
+
 
   const handlePickDirectory = async () => {
     try {
@@ -254,21 +260,15 @@ const App = () => {
               <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
             </View>
           )}
-          <Text style={styles.nowPlayingTitle}>{currentSongItem?.name}</Text>
-          {currentSongItem?.artist && <Text style={styles.nowPlayingArtist}>{currentSongItem.artist}</Text>}
-          <View style={styles.controls}>
-            <TouchableOpacity onPress={previousSong} style={styles.controlButton}>
-              <Text style={styles.controlButtonText}>Previous</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={togglePlayPause} style={styles.controlButton}>
-              <Text style={styles.controlButtonText}>{isPlaying ? 'Pause' : 'Play'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={nextSong} style={styles.controlButton}>
-              <Text style={styles.controlButtonText}>Next</Text>
-            </TouchableOpacity>
+           <View style={styles.nowPlayingTextContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Text style={styles.nowPlayingTitle}>{currentSongItem?.name}</Text>
+            </ScrollView>
+            <Text style={styles.nowPlayingArtist}>{currentSongItem?.artist || 'Unknown Artist'}</Text>
           </View>
+              {/* {currentSongItem?.artist && <Text style={styles.nowPlayingArtist}>{currentSongItem.artist}</Text>} */}
           <Slider
-              style={{ width: '80%', height: 40 }}
+              style={{ width: '90%', height: 40 }}
               minimumValue={0}
               maximumValue={duration}
               value={progress}
@@ -286,12 +286,20 @@ const App = () => {
               <Text style={styles.timeText}>{new Date(progress * 1000).toISOString().substr(11, 8)}</Text>
               <Text style={styles.timeText}>{new Date(duration * 1000).toISOString().substr(11, 8)}</Text>
             </View>
-          <TouchableOpacity 
-            onPress={() => setShowNowPlaying(false)}
-            style={styles.closeButton}
-          >
-          <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
+            <View style={styles.controls}>
+            <TouchableOpacity onPress={previousSong} style={styles.controlButton}>
+              <Image source={require('./assets/back.png')} style={styles.controlIcon} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={togglePlayPause} style={styles.controlButton}>
+              <Image
+                source={isPlaying ? require('./assets/stop-button.png') : require('./assets/play-button.png')}
+                style={styles.startcontrolIcon}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={nextSong} style={styles.controlButton}>
+              <Image source={require('./assets/next.png')} style={styles.controlIcon} />
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -372,6 +380,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#121212',
   },
+  nowPlayingTextContainer: {
+    width: '80%',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
   nowPlayingCoverArt: {
     width: 240,
     height: 240,
@@ -385,7 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#333',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 70,
   },
   nowPlayingTitle: {
     fontSize: 24,
@@ -395,22 +408,27 @@ const styles = StyleSheet.create({
   nowPlayingArtist: {
     fontSize: 18,
     color: '#aaa',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   controls: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
     width: '80%',
-    marginBottom: 10,
-    marginTop: 40,
+    marginTop: 20,
   },
   controlButton: {
-    backgroundColor: '#1DB954',
-    padding: 10,
-    borderRadius: 20,
     alignItems: 'center',
-    minWidth: 80,
+    justifyContent: 'center',
+  },
+  startcontrolIcon: {
+    width: 70,
+    height: 70,
+    tintColor: '#fff', // Optional: Set tintColor if you want to color the icons
+  },
+  controlIcon: {
+    width: 40,
+    height: 40,
+    tintColor: '#fff', // Optional: Set tintColor if you want to color the icons
   },
   controlButtonText: {
     color: '#fff',
@@ -423,7 +441,6 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   closeButton: {
-    marginTop: 30,
     backgroundColor: '#4A4A4A',
     padding: 10,
     borderRadius: 20,
