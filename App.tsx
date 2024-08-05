@@ -74,6 +74,11 @@ const App = () => {
       RNFS.ExternalStorageDirectoryPath,
       `${RNFS.ExternalStorageDirectoryPath}/Music`,
       `${RNFS.ExternalStorageDirectoryPath}/Download`,
+      `${RNFS.ExternalStorageDirectoryPath}/Download/Music`,
+      `${RNFS.ExternalStorageDirectoryPath}/Download/Musik`,
+      `${RNFS.ExternalStorageDirectoryPath}/Downloads`,
+      `${RNFS.ExternalStorageDirectoryPath}/Downloads/Music`,
+      `${RNFS.ExternalStorageDirectoryPath}/Downloads/Musik`,
       `${RNFS.ExternalStorageDirectoryPath}/Download/Rap`,
     ];
 
@@ -200,31 +205,36 @@ const App = () => {
         keyExtractor={(item) => item.path}
         renderItem={({ item }) => (
           <TouchableOpacity onPress={() => playSong(item.path, item)} style={styles.songItem}>
-          {item.coverArtUrl ? (
-            <Image source={{ uri: item.coverArtUrl }} style={styles.songCoverArt} />
-          ) : (
-            <View style={styles.defaultCoverArt}>
-              <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
+            {item.coverArtUrl ? (
+              <Image source={{ uri: item.coverArtUrl }} style={styles.songCoverArt} />
+            ) : (
+              <View style={styles.defaultCoverArt}>
+                <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
+              </View>
+            )}
+            <View style={styles.songInfo}>
+              <Text style={styles.songTitle}>{item.name}</Text>
+              {item.artist && <Text style={styles.songArtist}>{item.artist}</Text>}
             </View>
-          )}
-          <View style={styles.songInfo}>
-            <Text style={styles.songTitle}>{item.name}</Text>
-            {item.artist && <Text style={styles.songArtist}>{item.artist}</Text>}
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
         )}
       />
       <Modal
         animationType="slide"
-        transparent={false}
+        transparent={true}
         visible={showNowPlaying}
         onRequestClose={() => setShowNowPlaying(false)}
       >
         <View style={styles.nowPlayingContainer}>
-          <View style={styles.albumArtContainer}>
-            <View style={styles.albumArt} />
-          </View>
+          {currentSongItem?.coverArtUrl ? (
+            <Image source={{ uri: currentSongItem.coverArtUrl }} style={styles.nowPlayingCoverArt} />
+          ) : (
+            <View style={styles.defaultNowPlayingCoverArt}>
+              <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
+            </View>
+          )}
           <Text style={styles.nowPlayingTitle}>{currentSongItem?.name}</Text>
+          {currentSongItem?.artist && <Text style={styles.nowPlayingArtist}>{currentSongItem.artist}</Text>}
           <View style={styles.controls}>
             <TouchableOpacity onPress={previousSong} style={styles.controlButton}>
               <Text style={styles.controlButtonText}>Previous</Text>
@@ -279,13 +289,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   songItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#2A2A2A',
   },
+  songCoverArt: {
+    width: 60,
+    height: 60,
+    borderRadius: 5,
+    marginRight: 16,
+  },
+  defaultCoverArt: {
+    width: 60,
+    height: 60,
+    borderRadius: 5,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  defaultCoverArtText: {
+    color: '#fff',
+    fontSize: 12,
+  },
+  songInfo: {
+    flex: 1,
+  },
   songTitle: {
     fontSize: 16,
     color: '#fff',
+    marginBottom: 4,
+  },
+  songArtist: {
+    fontSize: 14,
+    color: '#aaa',
   },
   nowPlayingContainer: {
     flex: 1,
@@ -293,38 +332,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#121212',
   },
-  albumArtContainer: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: '#2A2A2A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  albumArt: {
+  nowPlayingCoverArt: {
     width: 240,
     height: 240,
     borderRadius: 120,
-    backgroundColor: '#4A4A4A',
+    marginBottom: 20,
+  },
+  defaultNowPlayingCoverArt: {
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   nowPlayingTitle: {
-    fontSize: 20,
+    fontSize: 24,
     color: '#fff',
-    marginBottom: 30,
+    marginBottom: 8,
+  },
+  nowPlayingArtist: {
+    fontSize: 18,
+    color: '#aaa',
+    marginBottom: 20,
   },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     width: '80%',
   },
   controlButton: {
     backgroundColor: '#1DB954',
     padding: 10,
     borderRadius: 20,
-    minWidth: 80,
     alignItems: 'center',
+    minWidth: 80,
   },
   controlButtonText: {
     color: '#fff',
@@ -339,31 +383,6 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: '#fff',
     fontSize: 16,
-  },
-
-  songCoverArt: {
-    width: 60,
-    height: 60,
-    marginRight: 16,
-  },
-  defaultCoverArt: {
-    width: 60,
-    height: 60,
-    marginRight: 16,
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  defaultCoverArtText: {
-    color: '#fff',
-    fontSize: 12,
-  },
-  songInfo: {
-    flex: 1,
-  },
-  songArtist: {
-    color: '#aaa',
-    fontSize: 14,
   },
 });
 
