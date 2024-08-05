@@ -287,6 +287,9 @@ const App = () => {
               <Text style={styles.timeText}>{new Date(duration * 1000).toISOString().substr(11, 8)}</Text>
             </View>
             <View style={styles.controls}>
+            <TouchableOpacity onPress={() => console.log('Cycle button pressed')} style={styles.controlButton}>
+              <Image source={require('./assets/repeat.png') /* change this as needed */} style={styles.repeatcontrolIcon} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={previousSong} style={styles.controlButton}>
               <Image source={require('./assets/back.png')} style={styles.controlIcon} />
             </TouchableOpacity>
@@ -298,6 +301,9 @@ const App = () => {
             </TouchableOpacity>
             <TouchableOpacity onPress={nextSong} style={styles.controlButton}>
               <Image source={require('./assets/next.png')} style={styles.controlIcon} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => console.log('Cycle button pressed')} style={styles.controlButton}>
+              <Image source={require('./assets/shuffle.png') /* change this as needed */} style={styles.shufflecontrolIcon} />
             </TouchableOpacity>
           </View>
         </View>
@@ -420,9 +426,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  repeatcontrolIcon: {
+    width: 25,
+    height: 25,
+    tintColor: '#fff', // Optional: Set tintColor if you want to color the icons
+  },
   startcontrolIcon: {
     width: 70,
     height: 70,
+    tintColor: '#fff', // Optional: Set tintColor if you want to color the icons
+  },
+  shufflecontrolIcon: {
+    width: 25,
+    height: 25,
     tintColor: '#fff', // Optional: Set tintColor if you want to color the icons
   },
   controlIcon: {
