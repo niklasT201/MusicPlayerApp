@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '80%',
     marginBottom: 10,
-    marginTop: 20,
+    marginTop: 40,
   },
   controlButton: {
     backgroundColor: '#1DB954',
