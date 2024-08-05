@@ -416,6 +416,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
   },
+  slider: {
+    width: '80%',
+    height: 40,
+    alignSelf: 'center',
+    marginVertical: 20,
+  },
   closeButton: {
     marginTop: 30,
     backgroundColor: '#4A4A4A',
