@@ -255,9 +255,7 @@ const App = () => {
 
   const renderFolder = ({ item }: { item: Folder }) => (
     <TouchableOpacity onPress={() => loadSongsForFolder(item)} style={styles.songItem}>
-      <View style={styles.defaultCoverArt}>
-        <Text style={styles.defaultCoverArtText}>Folder</Text>
-      </View>
+      <Image source={require('./assets/Folder.png')} style={styles.folderIcon} />
       <View style={styles.songInfo}>
         <Text style={styles.songTitle}>{item.name}</Text>
       </View>
@@ -313,23 +311,39 @@ const App = () => {
     </TouchableOpacity>
   );
 
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <Text style={styles.title}>AudioFlow</Text>
+      <View style={styles.headerIcons}>
+        {currentFolder && (
+          <TouchableOpacity onPress={() => setCurrentFolder(null)} style={styles.headerButton}>
+            <Image source={require('./assets/Folder.png')} style={styles.headerIcon} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={handlePickDirectory} style={styles.headerButton}>
+          <Image source={require('./assets/add.png')} style={styles.addheaderIcon} />
+        </TouchableOpacity>
+        {currentFolder && (
+          <TouchableOpacity 
+            onPress={() => sortSongs(sortOrder === 'asc' ? 'desc' : 'asc')} 
+            style={styles.headerButton}
+          >
+            <Image 
+              source={sortOrder === 'asc' ? require('./assets/arrow-up.png') : require('./assets/arrow-down.png')} 
+              style={styles.headerIcon} 
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1E1E1E" barStyle="light-content" />
-      <View style={styles.header}>
-        <Text style={styles.title}>AudioFlow</Text>
-      </View>
-      <View style={styles.inputContainer}>
-        <TouchableOpacity style={styles.selectButton} onPress={handlePickDirectory}>
-          <Text style={styles.selectButtonText}>Select Directory</Text>
-        </TouchableOpacity>
-        {currentFolder && renderSortButton()}
-      </View>
+      {renderHeader()}
       {currentFolder ? (
         <>
-          <TouchableOpacity onPress={() => setCurrentFolder(null)} style={styles.backButton}>
-            <Text style={styles.backButtonText}>Back to Folders</Text>
-          </TouchableOpacity>
           <FlatList
             data={songs}
             renderItem={renderSong}
@@ -344,6 +358,7 @@ const App = () => {
           renderItem={renderFolder}
           keyExtractor={(item, index) => `${item.path}_${index}`}
           style={styles.list}
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={showMiniPlayer ? { paddingBottom: 70 } : undefined}
         />
       )}
@@ -420,14 +435,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     backgroundColor: '#1E1E1E',
-    alignItems: 'center',
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  headerIcons: {
+    flexDirection: 'row',
+  },
+  headerButton: {
+    marginLeft: 16,
+  },
+  headerIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#fff', // This will color the icon white. Remove if not needed.
+  },
+  addheaderIcon: {
+    width: 30,
+    height: 30,
+    tintColor: '#fff', // This will color the icon white. Remove if not needed.
   },
   inputContainer: {
     padding: 16,
@@ -647,10 +680,17 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
     marginLeft: 10,
+    marginTop: 10,
   },
   sortButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  folderIcon: {
+    width: 40,
+    height: 40,
+    marginRight: 10,
+    tintColor: '#fff',
   },
 });
 
