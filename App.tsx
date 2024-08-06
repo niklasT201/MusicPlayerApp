@@ -108,26 +108,28 @@ const App = () => {
     ];
 
     let musicFolders: Folder[] = [];
-
+    const addedPaths = new Set<string>();
+  
     for (const dir of rootDirs) {
-      await scanDirectory(dir, musicFolders);
+      await scanDirectory(dir, musicFolders, addedPaths);
     }
-
+  
     return musicFolders;
   };
 
-  const scanDirectory = async (dirPath: string, musicFolders: Folder[]) => {
+  const scanDirectory = async (dirPath: string, musicFolders: Folder[], addedPaths: Set<string>) => {
     try {
       const files = await RNFS.readDir(dirPath);
       const hasMp3 = files.some(file => file.name.toLowerCase().endsWith('.mp3'));
       
-      if (hasMp3) {
+      if (hasMp3 && !addedPaths.has(dirPath)) {
         musicFolders.push({ name: dirPath.split('/').pop() || '', path: dirPath });
+        addedPaths.add(dirPath);
       }
-
+  
       for (const file of files) {
         if (file.isDirectory()) {
-          await scanDirectory(file.path, musicFolders);
+          await scanDirectory(file.path, musicFolders, addedPaths);
         }
       }
     } catch (error) {
@@ -315,7 +317,7 @@ const App = () => {
         <FlatList
           data={folders}
           renderItem={renderFolder}
-          keyExtractor={(item) => item.path}
+          keyExtractor={(item, index) => `${item.path}_${index}`}
           style={styles.list}
           contentContainerStyle={showMiniPlayer ? { paddingBottom: 70 } : undefined}
         />
