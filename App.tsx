@@ -160,61 +160,44 @@ const App = () => {
   };
 
   const playSong = (filePath: string, songItem: SongItem) => {
-    console.log(`Attempting to play: ${songItem.name}`);
     if (currentSong) {
-      currentSong.stop(() => {
-        currentSong.release();
-        playNextSong(filePath, songItem);
-      });
-    } else {
-      playNextSong(filePath, songItem);
+      currentSong.stop(() => currentSong.release());
     }
-  };
-
-  const playNextSong = (filePath: string, songItem: SongItem) => {
-    console.log(`Loading next song: ${songItem.name}`);
+  
     const sound = new Sound(filePath, '', (error) => {
       if (error) {
         console.log('Failed to load sound', error);
-        if (isAutoPlaying) {
-          const nextSongIndex = songs.findIndex(song => song.path === songItem.path) + 1;
-          if (nextSongIndex < songs.length) {
-            playSong(songs[nextSongIndex].path, songs[nextSongIndex]);
-          }
-        }
         return;
       }
-  
-      setCurrentSong(sound);
-      setCurrentSongItem(songItem);
-      setShowMiniPlayer(true);
   
       sound.play((success) => {
         if (success) {
           console.log('Playback finished');
-          if (isAutoPlaying) {
-            const nextSongIndex = songs.findIndex(song => song.path === songItem.path) + 1;
-            if (nextSongIndex < songs.length) {
-              playSong(songs[nextSongIndex].path, songs[nextSongIndex]);
-            } else {
-              setIsPlaying(false);
-              setCurrentSong(null);
-              setCurrentSongItem(null);
-            }
-          }
+          sound.release();
+          playNextSong();
         } else {
           console.log('Playback failed due to audio decoding errors');
-          if (isAutoPlaying) {
-            const nextSongIndex = songs.findIndex(song => song.path === songItem.path) + 1;
-            if (nextSongIndex < songs.length) {
-              playSong(songs[nextSongIndex].path, songs[nextSongIndex]);
-            }
-          }
         }
       });
   
+      setCurrentSong(sound);
       setIsPlaying(true);
+      setCurrentSongItem(songItem);
+      setShowMiniPlayer(true);
     });
+  };
+
+  const playNextSong = () => {
+    const currentIndex = songs.findIndex(song => song.path === currentSongItem?.path);
+    if (currentIndex < songs.length - 1) {
+      const nextSong = songs[currentIndex + 1];
+      playSong(nextSong.path, nextSong);
+    } else {
+      // End of playlist
+      setIsPlaying(false);
+      setCurrentSong(null);
+      setCurrentSongItem(null);
+    }
   };
   
 
@@ -267,15 +250,10 @@ const App = () => {
     }
   };
 
-  const nextSong = () => {
-    if (currentSongItem) {
-      const currentIndex = songs.findIndex(song => song.path === currentSongItem.path);
-      if (currentIndex < songs.length - 1) {
-        const nextSong = songs[currentIndex + 1];
-        playSong(nextSong.path, nextSong);
-      }
-    }
-  };
+ // Update the nextSong function to use playNextSong
+const nextSong = () => {
+  playNextSong();
+};
   
   const previousSong = () => {
     if (currentSongItem) {
