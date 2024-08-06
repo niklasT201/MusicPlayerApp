@@ -52,6 +52,7 @@ const App = () => {
   const [currentSongItem, setCurrentSongItem] = useState<SongItem | null>(null);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showMiniPlayer, setShowMiniPlayer] = useState(false);
 
   useEffect(() => {
     console.log('App started');
@@ -180,8 +181,12 @@ const App = () => {
       setCurrentSong(sound);
       setIsPlaying(true);
       setCurrentSongItem(songItem);
-      setShowNowPlaying(true);
+      setShowMiniPlayer(true);  // Show mini player when a song starts playing
     });
+  };
+
+  const toggleFullPlayer = () => {
+    setShowNowPlaying(!showNowPlaying);
   };
 
   const handlePickDirectory = async () => {
@@ -260,6 +265,28 @@ const App = () => {
     </TouchableOpacity>
   );
 
+  const renderMiniPlayer = () => (
+    <TouchableOpacity style={styles.miniPlayer} onPress={toggleFullPlayer}>
+      {currentSongItem?.coverArtUrl ? (
+        <Image source={{ uri: currentSongItem.coverArtUrl }} style={styles.miniPlayerCoverArt} />
+      ) : (
+        <View style={styles.miniPlayerDefaultCoverArt}>
+          <Text style={styles.miniPlayerDefaultCoverArtText}>No Cover</Text>
+        </View>
+      )}
+      <View style={styles.miniPlayerInfo}>
+        <Text style={styles.miniPlayerTitle} numberOfLines={1}>{currentSongItem?.name}</Text>
+        <Text style={styles.miniPlayerArtist} numberOfLines={1}>{currentSongItem?.artist || 'Unknown Artist'}</Text>
+      </View>
+      <TouchableOpacity onPress={togglePlayPause} style={styles.miniPlayerControl}>
+        <Image
+          source={isPlaying ? require('./assets/stop-button.png') : require('./assets/play-button.png')}
+          style={styles.miniPlayerControlIcon}
+        />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1E1E1E" barStyle="light-content" />
@@ -280,6 +307,8 @@ const App = () => {
             data={songs}
             renderItem={renderSong}
             keyExtractor={(item) => item.path}
+            style={styles.list}
+            contentContainerStyle={showMiniPlayer ? { paddingBottom: 70 } : undefined}
           />
         </>
       ) : (
@@ -287,8 +316,11 @@ const App = () => {
           data={folders}
           renderItem={renderFolder}
           keyExtractor={(item) => item.path}
+          style={styles.list}
+          contentContainerStyle={showMiniPlayer ? { paddingBottom: 70 } : undefined}
         />
       )}
+      {showMiniPlayer && renderMiniPlayer()}
       <Modal
         animationType="slide"
         transparent={true}
@@ -527,6 +559,61 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#fff',
     textAlign: 'center',
+  },
+  miniPlayer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 70,
+    backgroundColor: '#1E1E1E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  miniPlayerCoverArt: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 10,
+  },
+  miniPlayerDefaultCoverArt: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  miniPlayerDefaultCoverArtText: {
+    color: '#fff',
+    fontSize: 10,
+  },
+  miniPlayerInfo: {
+    flex: 1,
+  },
+  miniPlayerTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  miniPlayerArtist: {
+    color: '#aaa',
+    fontSize: 14,
+  },
+  miniPlayerControl: {
+    padding: 10,
+  },
+  miniPlayerControlIcon: {
+    width: 30,
+    height: 30,
+    tintColor: '#fff',
+  },
+  list: {
+    flex: 1,
   },
 });
 
