@@ -26,6 +26,7 @@ import Sound from 'react-native-sound';
 import RNFS, { ReadDirItem } from 'react-native-fs';
 import DocumentPicker from 'react-native-document-picker';
 import Slider from '@react-native-community/slider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define a type for the song items
 interface SongItem {
@@ -36,62 +37,64 @@ interface SongItem {
   album?: string;
 }
 
+interface Folder {
+  name: string;
+  path: string;
+}
+
 const App = () => {
-  // Define the state with the correct type
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [currentSong, setCurrentSong] = useState<Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [currentSongItem, setCurrentSongItem] = useState<SongItem | null>(null);
-
-  // Add these states to manage progress and duration
-    const [progress, setProgress] = useState(0);
-    const [duration, setDuration] = useState(0);
-
-    // Function to update progress and duration
-    const updateProgress = () => {
-      if (currentSong) {
-        currentSong.getCurrentTime(seconds => setProgress(seconds));
-        setDuration(currentSong.getDuration());
-      }
-    };
-
-    // Start interval for progress updates
-    useEffect(() => {
-      const interval = setInterval(updateProgress, 1000);
-      return () => clearInterval(interval);
-    }, [currentSong]);
-
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
     console.log('App started');
-    if (Platform.OS === 'android') {
-      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE)
-        .then(hasPermission => {
-          if (hasPermission) {
-            console.log('Storage permission already granted');
-            loadSongs();
-          } else {
-            console.log('Requesting storage permission');
-            PermissionsAndroid.request(
-              PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
-            ).then((granted) => {
-              console.log('Permission result:', granted);
-              if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-                loadSongs();
-              } else {
-                console.log('Storage permission denied');
-              }
-            });
-          }
-        });
-    } else {
-      loadSongs();
-    }
+    requestPermissionsAndLoadFolders();
   }, []);
 
-  const loadSongs = async (additionalPath = '') => {
-    const directories = [
+  useEffect(() => {
+    const interval = setInterval(updateProgress, 1000);
+    return () => clearInterval(interval);
+  }, [currentSong]);
+
+  const requestPermissionsAndLoadFolders = async () => {
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+      );
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        loadFolders();
+      } else {
+        console.log('Storage permission denied');
+      }
+    } else {
+      loadFolders();
+    }
+  };
+
+  const loadFolders = async () => {
+    try {
+      const cachedFolders = await AsyncStorage.getItem('musicFolders');
+      if (cachedFolders) {
+        setFolders(JSON.parse(cachedFolders));
+      } else {
+        const musicFolders = await scanForMusicFolders();
+        setFolders(musicFolders);
+        await AsyncStorage.setItem('musicFolders', JSON.stringify(musicFolders));
+      }
+    } catch (error) {
+      console.error('Error loading folders:', error);
+    }
+  };
+
+  const scanForMusicFolders = async (): Promise<Folder[]> => {
+    const rootDirs = [
       RNFS.ExternalStorageDirectoryPath,
       `${RNFS.ExternalStorageDirectoryPath}/Music`,
       `${RNFS.ExternalStorageDirectoryPath}/Download`,
@@ -103,79 +106,95 @@ const App = () => {
       `${RNFS.ExternalStorageDirectoryPath}/Download/Rap`,
     ];
 
-    // Include custom path if provided
-    if (additionalPath) {
-      directories.push(additionalPath);
+    let musicFolders: Folder[] = [];
+
+    for (const dir of rootDirs) {
+      await scanDirectory(dir, musicFolders);
     }
 
-    let allSongs: SongItem[] = [];
+    return musicFolders;
+  };
 
-    for (const dir of directories) {
-      try {
-        console.log(`Attempting to read directory: ${dir}`);
-        const dirExists = await RNFS.exists(dir);
-        if (!dirExists) {
-          console.log(`Directory does not exist: ${dir}`);
-          continue;
-        }
-        const files = await RNFS.readDir(dir);
-        if (files && files.length > 0) {
-          console.log(`Files found in ${dir}:`, files.length);
-          const mp3Files = files.filter(file => file.isFile() && file.name.toLowerCase().endsWith('.mp3'));
-          console.log(`MP3 files found in ${dir}:`, mp3Files.length);
-          allSongs = allSongs.concat(mp3Files.map(file => ({
-            name: file.name,
-            path: file.path,
-          })));
-        } else {
-          console.log(`No files found in ${dir}`);
-        }
-      } catch (err) {
-        console.log(`Error reading ${dir}:`, err);
+  const scanDirectory = async (dirPath: string, musicFolders: Folder[]) => {
+    try {
+      const files = await RNFS.readDir(dirPath);
+      const hasMp3 = files.some(file => file.name.toLowerCase().endsWith('.mp3'));
+      
+      if (hasMp3) {
+        musicFolders.push({ name: dirPath.split('/').pop() || '', path: dirPath });
       }
-    }
 
-    console.log('Total songs found:', allSongs.length);
-    setSongs(allSongs);
+      for (const file of files) {
+        if (file.isDirectory()) {
+          await scanDirectory(file.path, musicFolders);
+        }
+      }
+    } catch (error) {
+      console.error(`Error scanning directory ${dirPath}:`, error);
+    }
+  };
+
+  const loadSongsForFolder = async (folder: Folder) => {
+    try {
+      const files = await RNFS.readDir(folder.path);
+      const mp3Files = files
+        .filter(file => file.isFile() && file.name.toLowerCase().endsWith('.mp3'))
+        .map(file => ({ name: file.name, path: file.path }));
+      setSongs(mp3Files);
+      setCurrentFolder(folder);
+    } catch (error) {
+      console.error('Error loading songs:', error);
+    }
+  };
+
+  const updateProgress = () => {
+    if (currentSong) {
+      currentSong.getCurrentTime(seconds => setProgress(seconds));
+      setDuration(currentSong.getDuration());
+    }
   };
 
   const playSong = (filePath: string, songItem: SongItem) => {
-  if (currentSong) {
-    currentSong.stop(() => currentSong.release());
-    setIsPlaying(false);
-  }
-
-  const sound = new Sound(filePath, '', (error) => {
-    if (error) {
-      console.log('Failed to load sound', error);
-      return;
+    if (currentSong) {
+      currentSong.stop(() => currentSong.release());
+      setIsPlaying(false);
     }
 
-    sound.play((success) => {
-      if (success) {
-        console.log('Playback finished');
-        nextSong(); // Automatically play the next song when the current song finishes
-      } else {
-        console.log('Playback failed due to audio decoding errors');
+    const sound = new Sound(filePath, '', (error) => {
+      if (error) {
+        console.log('Failed to load sound', error);
+        return;
       }
-      setIsPlaying(false);
-      sound.release();
+
+      sound.play((success) => {
+        if (success) {
+          console.log('Playback finished');
+          nextSong();
+        } else {
+          console.log('Playback failed due to audio decoding errors');
+        }
+        setIsPlaying(false);
+        sound.release();
+      });
+
+      setCurrentSong(sound);
+      setIsPlaying(true);
+      setCurrentSongItem(songItem);
+      setShowNowPlaying(true);
     });
-
-    setCurrentSong(sound);
-    setIsPlaying(true);
-    setCurrentSongItem(songItem);
-    setShowNowPlaying(true);
-  });
-};
-
+  };
 
   const handlePickDirectory = async () => {
     try {
       const res = await DocumentPicker.pickDirectory();
       if (res) {
         console.log('Selected directory:', res);
-        loadSongs(res.uri.replace('file://', ''));
+        // Extract the folder name from the URI
+        const folderName = res.uri.split('/').pop() || 'Selected Folder';
+        loadSongsForFolder({ 
+          name: folderName, 
+          path: res.uri.replace('file://', '') 
+        });
       }
     } catch (err) {
       if (DocumentPicker.isCancel(err)) {
@@ -184,7 +203,6 @@ const App = () => {
         console.error('Unknown error:', err);
         Alert.alert('Error', 'An error occurred while selecting a directory.');
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -215,6 +233,33 @@ const App = () => {
     }
   };
 
+  const renderFolder = ({ item }: { item: Folder }) => (
+    <TouchableOpacity onPress={() => loadSongsForFolder(item)} style={styles.songItem}>
+      <View style={styles.defaultCoverArt}>
+        <Text style={styles.defaultCoverArtText}>Folder</Text>
+      </View>
+      <View style={styles.songInfo}>
+        <Text style={styles.songTitle}>{item.name}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderSong = ({ item }: { item: SongItem }) => (
+    <TouchableOpacity onPress={() => playSong(item.path, item)} style={styles.songItem}>
+      {item.coverArtUrl ? (
+        <Image source={{ uri: item.coverArtUrl }} style={styles.songCoverArt} />
+      ) : (
+        <View style={styles.defaultCoverArt}>
+          <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
+        </View>
+      )}
+      <View style={styles.songInfo}>
+        <Text style={styles.songTitle}>{item.name}</Text>
+        {item.artist && <Text style={styles.songArtist}>{item.artist}</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1E1E1E" barStyle="light-content" />
@@ -226,25 +271,24 @@ const App = () => {
           <Text style={styles.selectButtonText}>Select Directory</Text>
         </TouchableOpacity>
       </View>
-      <FlatList
-        data={songs}
-        keyExtractor={(item) => item.path}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => playSong(item.path, item)} style={styles.songItem}>
-            {item.coverArtUrl ? (
-              <Image source={{ uri: item.coverArtUrl }} style={styles.songCoverArt} />
-            ) : (
-              <View style={styles.defaultCoverArt}>
-                <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
-              </View>
-            )}
-            <View style={styles.songInfo}>
-              <Text style={styles.songTitle}>{item.name}</Text>
-              {item.artist && <Text style={styles.songArtist}>{item.artist}</Text>}
-            </View>
+      {currentFolder ? (
+        <>
+          <TouchableOpacity onPress={() => setCurrentFolder(null)} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Back to Folders</Text>
           </TouchableOpacity>
-        )}
-      />
+          <FlatList
+            data={songs}
+            renderItem={renderSong}
+            keyExtractor={(item) => item.path}
+          />
+        </>
+      ) : (
+        <FlatList
+          data={folders}
+          renderItem={renderFolder}
+          keyExtractor={(item) => item.path}
+        />
+      )}
       <Modal
         animationType="slide"
         transparent={true}
@@ -252,7 +296,7 @@ const App = () => {
         onRequestClose={() => setShowNowPlaying(false)}
       >
         <View style={styles.nowPlayingContainer}>
-        <StatusBar backgroundColor="#121212" barStyle="light-content" />
+          <StatusBar backgroundColor="#121212" barStyle="light-content" />
           {currentSongItem?.coverArtUrl ? (
             <Image source={{ uri: currentSongItem.coverArtUrl }} style={styles.nowPlayingCoverArt} />
           ) : (
@@ -260,35 +304,34 @@ const App = () => {
               <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
             </View>
           )}
-           <View style={styles.nowPlayingTextContainer}>
+          <View style={styles.nowPlayingTextContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <Text style={styles.nowPlayingTitle}>{currentSongItem?.name}</Text>
             </ScrollView>
             <Text style={styles.nowPlayingArtist}>{currentSongItem?.artist || 'Unknown Artist'}</Text>
           </View>
-              {/* {currentSongItem?.artist && <Text style={styles.nowPlayingArtist}>{currentSongItem.artist}</Text>} */}
           <Slider
-              style={{ width: '90%', height: 40 }}
-              minimumValue={0}
-              maximumValue={duration}
-              value={progress}
-              minimumTrackTintColor="#1DB954"
-              maximumTrackTintColor="#fff"
-              thumbTintColor="#1DB954"
-              onValueChange={(value) => {
-                if (currentSong) {
-                  currentSong.setCurrentTime(value);
-                  setProgress(value);
-                }
-              }}
-            />
-            <View style={styles.timeContainer}>
-              <Text style={styles.timeText}>{new Date(progress * 1000).toISOString().substr(11, 8)}</Text>
-              <Text style={styles.timeText}>{new Date(duration * 1000).toISOString().substr(11, 8)}</Text>
-            </View>
-            <View style={styles.controls}>
+            style={{ width: '90%', height: 40 }}
+            minimumValue={0}
+            maximumValue={duration}
+            value={progress}
+            minimumTrackTintColor="#1DB954"
+            maximumTrackTintColor="#fff"
+            thumbTintColor="#1DB954"
+            onValueChange={(value) => {
+              if (currentSong) {
+                currentSong.setCurrentTime(value);
+                setProgress(value);
+              }
+            }}
+          />
+          <View style={styles.timeContainer}>
+            <Text style={styles.timeText}>{new Date(progress * 1000).toISOString().substr(11, 8)}</Text>
+            <Text style={styles.timeText}>{new Date(duration * 1000).toISOString().substr(11, 8)}</Text>
+          </View>
+          <View style={styles.controls}>
             <TouchableOpacity onPress={() => console.log('Cycle button pressed')} style={styles.controlButton}>
-              <Image source={require('./assets/repeat.png') /* change this as needed */} style={styles.repeatcontrolIcon} />
+              <Image source={require('./assets/repeat.png')} style={styles.repeatcontrolIcon} />
             </TouchableOpacity>
             <TouchableOpacity onPress={previousSong} style={styles.controlButton}>
               <Image source={require('./assets/back.png')} style={styles.controlIcon} />
@@ -303,7 +346,7 @@ const App = () => {
               <Image source={require('./assets/next.png')} style={styles.controlIcon} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => console.log('Cycle button pressed')} style={styles.controlButton}>
-              <Image source={require('./assets/shuffle.png') /* change this as needed */} style={styles.shufflecontrolIcon} />
+              <Image source={require('./assets/shuffle.png')} style={styles.shufflecontrolIcon} />
             </TouchableOpacity>
           </View>
         </View>
@@ -474,6 +517,16 @@ const styles = StyleSheet.create({
   timeText: {
     color: '#fff',
     fontSize: 12,
+  },
+  backButton: {
+    padding: 10,
+    backgroundColor: '#1DB954',
+    margin: 10,
+    borderRadius: 5,
+  },
+  backButtonText: {
+    color: '#fff',
+    textAlign: 'center',
   },
 });
 
