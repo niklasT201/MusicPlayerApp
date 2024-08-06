@@ -54,6 +54,7 @@ const App = () => {
   const [duration, setDuration] = useState(0);
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
 
   useEffect(() => {
     console.log('App started');
@@ -159,34 +160,63 @@ const App = () => {
   };
 
   const playSong = (filePath: string, songItem: SongItem) => {
+    console.log(`Attempting to play: ${songItem.name}`);
     if (currentSong) {
-      currentSong.stop(() => currentSong.release());
-      setIsPlaying(false);
+      currentSong.stop(() => {
+        currentSong.release();
+        playNextSong(filePath, songItem);
+      });
+    } else {
+      playNextSong(filePath, songItem);
     }
+  };
 
+  const playNextSong = (filePath: string, songItem: SongItem) => {
+    console.log(`Loading next song: ${songItem.name}`);
     const sound = new Sound(filePath, '', (error) => {
       if (error) {
         console.log('Failed to load sound', error);
+        if (isAutoPlaying) {
+          const nextSongIndex = songs.findIndex(song => song.path === songItem.path) + 1;
+          if (nextSongIndex < songs.length) {
+            playSong(songs[nextSongIndex].path, songs[nextSongIndex]);
+          }
+        }
         return;
       }
-
+  
+      setCurrentSong(sound);
+      setCurrentSongItem(songItem);
+      setShowMiniPlayer(true);
+  
       sound.play((success) => {
         if (success) {
           console.log('Playback finished');
-          nextSong();
+          if (isAutoPlaying) {
+            const nextSongIndex = songs.findIndex(song => song.path === songItem.path) + 1;
+            if (nextSongIndex < songs.length) {
+              playSong(songs[nextSongIndex].path, songs[nextSongIndex]);
+            } else {
+              setIsPlaying(false);
+              setCurrentSong(null);
+              setCurrentSongItem(null);
+            }
+          }
         } else {
           console.log('Playback failed due to audio decoding errors');
+          if (isAutoPlaying) {
+            const nextSongIndex = songs.findIndex(song => song.path === songItem.path) + 1;
+            if (nextSongIndex < songs.length) {
+              playSong(songs[nextSongIndex].path, songs[nextSongIndex]);
+            }
+          }
         }
-        setIsPlaying(false);
-        sound.release();
       });
-
-      setCurrentSong(sound);
+  
       setIsPlaying(true);
-      setCurrentSongItem(songItem);
-      setShowMiniPlayer(true);  // Show mini player when a song starts playing
     });
   };
+  
 
   const sortSongs = (order: 'asc' | 'desc') => {
     const sortedSongs = [...songs].sort((a, b) => {
@@ -238,18 +268,22 @@ const App = () => {
   };
 
   const nextSong = () => {
-    const currentIndex = songs.findIndex(song => song.path === currentSongItem?.path);
-    if (currentIndex < songs.length - 1) {
-      const nextSong = songs[currentIndex + 1];
-      playSong(nextSong.path, nextSong);
+    if (currentSongItem) {
+      const currentIndex = songs.findIndex(song => song.path === currentSongItem.path);
+      if (currentIndex < songs.length - 1) {
+        const nextSong = songs[currentIndex + 1];
+        playSong(nextSong.path, nextSong);
+      }
     }
   };
-
+  
   const previousSong = () => {
-    const currentIndex = songs.findIndex(song => song.path === currentSongItem?.path);
-    if (currentIndex > 0) {
-      const prevSong = songs[currentIndex - 1];
-      playSong(prevSong.path, prevSong);
+    if (currentSongItem) {
+      const currentIndex = songs.findIndex(song => song.path === currentSongItem.path);
+      if (currentIndex > 0) {
+        const prevSong = songs[currentIndex - 1];
+        playSong(prevSong.path, prevSong);
+      }
     }
   };
 
@@ -290,7 +324,11 @@ const App = () => {
   );
 
   const renderMiniPlayer = () => (
-    <TouchableOpacity style={styles.miniPlayer} onPress={toggleFullPlayer}>
+    <TouchableOpacity 
+    style={styles.miniPlayer} 
+    onPress={toggleFullPlayer}
+    activeOpacity={1} // This prevents the transparency effect
+  >
       {currentSongItem?.coverArtUrl ? (
         <Image source={{ uri: currentSongItem.coverArtUrl }} style={styles.miniPlayerCoverArt} />
       ) : (
