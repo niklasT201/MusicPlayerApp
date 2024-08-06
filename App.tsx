@@ -53,6 +53,7 @@ const App = () => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
   useEffect(() => {
     console.log('App started');
@@ -187,6 +188,18 @@ const App = () => {
     });
   };
 
+  const sortSongs = (order: 'asc' | 'desc') => {
+    const sortedSongs = [...songs].sort((a, b) => {
+      if (order === 'asc') {
+        return a.name.localeCompare(b.name);
+      } else {
+        return b.name.localeCompare(a.name);
+      }
+    });
+    setSongs(sortedSongs);
+    setSortOrder(order);
+  };
+
   const toggleFullPlayer = () => {
     setShowNowPlaying(!showNowPlaying);
   };
@@ -267,6 +280,17 @@ const App = () => {
     </TouchableOpacity>
   );
 
+  const renderSortButton = () => (
+    <TouchableOpacity
+      style={styles.sortButton}
+      onPress={() => sortSongs(sortOrder === 'asc' ? 'desc' : 'asc')}
+    >
+      <Text style={styles.sortButtonText}>
+        Sort {sortOrder === 'asc' ? '↓' : '↑'}
+      </Text>
+    </TouchableOpacity>
+  );
+
   const renderMiniPlayer = () => (
     <TouchableOpacity style={styles.miniPlayer} onPress={toggleFullPlayer}>
       {currentSongItem?.coverArtUrl ? (
@@ -299,6 +323,7 @@ const App = () => {
         <TouchableOpacity style={styles.selectButton} onPress={handlePickDirectory}>
           <Text style={styles.selectButtonText}>Select Directory</Text>
         </TouchableOpacity>
+        {currentFolder && renderSortButton()}
       </View>
       {currentFolder ? (
         <>
@@ -616,6 +641,16 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  sortButton: {
+    backgroundColor: '#1DB954',
+    padding: 10,
+    borderRadius: 5,
+    marginLeft: 10,
+  },
+  sortButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
 
