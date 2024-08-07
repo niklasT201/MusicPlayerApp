@@ -10,25 +10,24 @@ import {
   SafeAreaView,
   StatusBar,
   StyleSheet,
-  ScrollView ,
+  ScrollView,
   Text,
   View,
   FlatList,
   TouchableOpacity,
   PermissionsAndroid,
   Platform,
-  Button,
-  Alert,
-  Modal,
   Image,
+  Modal,
+  Alert,
 } from 'react-native';
-import Sound from 'react-native-sound';
-import RNFS, { ReadDirItem } from 'react-native-fs';
+import TrackPlayer, { Capability, usePlaybackState, State } from 'react-native-track-player';
+import RNFS from 'react-native-fs';
 import DocumentPicker from 'react-native-document-picker';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Define a type for the song items
+
 interface SongItem {
   name: string;
   path: string;
@@ -41,32 +40,45 @@ interface Folder {
   name: string;
   path: string;
 }
+const service = require('./service'); // Adjust the path if necessary
 
 const App = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
   const [songs, setSongs] = useState<SongItem[]>([]);
-  const [currentSong, setCurrentSong] = useState<Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [currentSongItem, setCurrentSongItem] = useState<SongItem | null>(null);
+  const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+
+  const playbackState = usePlaybackState();
+  const isPlaying = playbackState.state !== undefined && playbackState.state === State.Playing;
 
   useEffect(() => {
-    console.log('App started');
-    requestPermissionsAndLoadFolders();
+    setup();
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(updateProgress, 1000);
-    return () => clearInterval(interval);
-  }, [currentSong]);
+  const setup = async () => {
+    await TrackPlayer.setupPlayer();
+    TrackPlayer.updateOptions({
+      capabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+        Capability.Stop,
+      ],
+      compactCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SkipToNext,
+      ],
+    });
 
-  const requestPermissionsAndLoadFolders = async () => {
+    service();
+
     if (Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
@@ -79,6 +91,9 @@ const App = () => {
     } else {
       loadFolders();
     }
+
+    const interval = setInterval(updateProgress, 1000);
+    return () => clearInterval(interval);
   };
 
   const loadFolders = async () => {
@@ -111,11 +126,11 @@ const App = () => {
 
     let musicFolders: Folder[] = [];
     const addedPaths = new Set<string>();
-  
+
     for (const dir of rootDirs) {
       await scanDirectory(dir, musicFolders, addedPaths);
     }
-  
+
     return musicFolders;
   };
 
@@ -123,12 +138,12 @@ const App = () => {
     try {
       const files = await RNFS.readDir(dirPath);
       const hasMp3 = files.some(file => file.name.toLowerCase().endsWith('.mp3'));
-      
+
       if (hasMp3 && !addedPaths.has(dirPath)) {
         musicFolders.push({ name: dirPath.split('/').pop() || '', path: dirPath });
         addedPaths.add(dirPath);
       }
-  
+
       for (const file of files) {
         if (file.isDirectory()) {
           await scanDirectory(file.path, musicFolders, addedPaths);
@@ -147,59 +162,63 @@ const App = () => {
         .map(file => ({ name: file.name, path: file.path }));
       setSongs(mp3Files);
       setCurrentFolder(folder);
+      await setupTrackPlayer(mp3Files);
     } catch (error) {
       console.error('Error loading songs:', error);
     }
   };
 
+  const setupTrackPlayer = async (songs: SongItem[]) => {
+    await TrackPlayer.reset();
+    const trackItems = songs.map(song => ({
+      id: song.path,
+      url: song.path,
+      title: song.name,
+      artist: song.artist || 'Unknown Artist',
+      artwork: song.coverArtUrl,
+    }));
+    await TrackPlayer.add(trackItems);
+  };
+
   const updateProgress = () => {
-    if (currentSong) {
-      currentSong.getCurrentTime(seconds => setProgress(seconds));
-      setDuration(currentSong.getDuration());
-    }
+    TrackPlayer.getPosition().then(position => setProgress(position));
+    TrackPlayer.getDuration().then(duration => setDuration(duration));
   };
 
-  const playSong = (filePath: string, songItem: SongItem) => {
-    if (currentSong) {
-      currentSong.stop(() => currentSong.release());
-    }
-  
-    const sound = new Sound(filePath, '', (error) => {
-      if (error) {
-        console.log('Failed to load sound', error);
-        return;
-      }
-  
-      sound.play((success) => {
-        if (success) {
-          console.log('Playback finished');
-          sound.release();
-          playNextSong();
-        } else {
-          console.log('Playback failed due to audio decoding errors');
-        }
-      });
-  
-      setCurrentSong(sound);
-      setIsPlaying(true);
-      setCurrentSongItem(songItem);
+  const playSong = async (song: SongItem) => {
+    const index = songs.findIndex(s => s.path === song.path);
+    if (index !== -1) {
+      await TrackPlayer.skip(index);
+      await TrackPlayer.play();
+      setCurrentSongItem(song);
       setShowMiniPlayer(true);
-    });
-  };
-
-  const playNextSong = () => {
-    const currentIndex = songs.findIndex(song => song.path === currentSongItem?.path);
-    if (currentIndex < songs.length - 1) {
-      const nextSong = songs[currentIndex + 1];
-      playSong(nextSong.path, nextSong);
-    } else {
-      // End of playlist
-      setIsPlaying(false);
-      setCurrentSong(null);
-      setCurrentSongItem(null);
     }
   };
-  
+
+  const togglePlayPause = async () => {
+    const state = await TrackPlayer.getState();
+    if (state === State.Playing) {
+      await TrackPlayer.pause();
+    } else {
+      await TrackPlayer.play();
+    }
+  };
+
+  const nextSong = async () => {
+    try {
+      await TrackPlayer.skipToNext();
+    } catch (_) {
+      console.log('No next track available');
+    }
+  };
+
+  const previousSong = async () => {
+    try {
+      await TrackPlayer.skipToPrevious();
+    } catch (_) {
+      console.log('No previous track available');
+    }
+  };
 
   const sortSongs = (order: 'asc' | 'desc') => {
     const sortedSongs = [...songs].sort((a, b) => {
@@ -221,12 +240,10 @@ const App = () => {
     try {
       const res = await DocumentPicker.pickDirectory();
       if (res) {
-        console.log('Selected directory:', res);
-        // Extract the folder name from the URI
         const folderName = res.uri.split('/').pop() || 'Selected Folder';
-        loadSongsForFolder({ 
-          name: folderName, 
-          path: res.uri.replace('file://', '') 
+        loadSongsForFolder({
+          name: folderName,
+          path: res.uri.replace('file://', '')
         });
       }
     } catch (err) {
@@ -239,54 +256,15 @@ const App = () => {
     }
   };
 
-  const togglePlayPause = () => {
-    if (currentSong) {
-      if (isPlaying) {
-        currentSong.pause();
-      } else {
-        currentSong.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
- // Update the nextSong function to use playNextSong
-const nextSong = () => {
-  playNextSong();
-};
-  
-  const previousSong = () => {
-    if (currentSongItem) {
-      const currentIndex = songs.findIndex(song => song.path === currentSongItem.path);
-      if (currentIndex > 0) {
-        const prevSong = songs[currentIndex - 1];
-        playSong(prevSong.path, prevSong);
-      }
-    }
-  };
-
   const renderFolder = ({ item }: { item: Folder }) => (
     <TouchableOpacity onPress={() => loadSongsForFolder(item)} style={styles.songItem}>
-      <Image source={require('./assets/Folder.png')} style={styles.folderIcon} />
-      <View style={styles.songInfo}>
-        <Text style={styles.songTitle}>{item.name}</Text>
-      </View>
+      <Text style={styles.songTitle}>{item.name}</Text>
     </TouchableOpacity>
   );
 
   const renderSong = ({ item }: { item: SongItem }) => (
-    <TouchableOpacity onPress={() => playSong(item.path, item)} style={styles.songItem}>
-      {item.coverArtUrl ? (
-        <Image source={{ uri: item.coverArtUrl }} style={styles.songCoverArt} />
-      ) : (
-        <View style={styles.defaultCoverArt}>
-          <Text style={styles.defaultCoverArtText}>No Cover Art</Text>
-        </View>
-      )}
-      <View style={styles.songInfo}>
-        <Text style={styles.songTitle}>{item.name}</Text>
-        {item.artist && <Text style={styles.songArtist}>{item.artist}</Text>}
-      </View>
+    <TouchableOpacity onPress={() => playSong(item)} style={styles.songItem}>
+      <Text style={styles.songTitle}>{item.name}</Text>
     </TouchableOpacity>
   );
 
@@ -409,10 +387,8 @@ const nextSong = () => {
             maximumTrackTintColor="#fff"
             thumbTintColor="#1DB954"
             onValueChange={(value) => {
-              if (currentSong) {
-                currentSong.setCurrentTime(value);
-                setProgress(value);
-              }
+              TrackPlayer.seekTo(value);
+              setProgress(value);
             }}
           />
           <View style={styles.timeContainer}>
